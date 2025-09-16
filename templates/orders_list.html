@@ -2,18 +2,18 @@
 {% block content %}
 <h1 class="text-2xl font-semibold mb-4">Orders</h1>
 
-<form method="get" class="mb-4 flex gap-2">
-  <input name="q" value="{{ q or '' }}" placeholder="Search job id" class="border rounded px-2 py-1">
-  <button class="bg-gray-700 text-white px-3 py-1 rounded">Search</button>
+<form method="get" class="mb-4">
+  <input type="text" name="q" value="{{ q or '' }}" placeholder="Search job id" class="border rounded px-2 py-1">
+  <button class="bg-blue-600 text-white px-3 py-1 rounded">Search</button>
 </form>
 
 <table class="w-full bg-white shadow-sm border">
   <thead class="bg-gray-100">
     <tr>
-      <th class="p-2 text-left">ID</th>
-      <th class="p-2 text-left">Job ID</th>
-      <th class="p-2 text-left">Created</th>
-      <th class="p-2 text-left">Actions</th>
+      <th class="p-2">ID</th>
+      <th class="p-2">Job ID</th>
+      <th class="p-2">Created</th>
+      <th class="p-2">Actions</th>
     </tr>
   </thead>
   <tbody>
@@ -21,21 +21,27 @@
     <tr class="border-t">
       <td class="p-2">{{ o.id }}</td>
       <td class="p-2">{{ o.job_id }}</td>
-      <td class="p-2">{{ o.created_at }}</td>
+      <td class="p-2">{{ o.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
       <td class="p-2">
-        <a class="text-blue-600" href="/orders/{{ o.id }}">Open</a>
+        <a class="text-blue-600 mr-2" href="/orders/{{ o.id }}">Open</a>
+        <form action="/orders/{{ o.id }}" method="post" style="display:inline"
+          onsubmit="return confirm('Delete order #{{ o.id }}?');">
+          <input type="hidden" name="_method" value="delete">
+          <button class="text-red-600">Delete</button>
+        </form>
       </td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 
-{% if page_count > 1 %}
-<div class="mt-3 flex gap-2">
-  {% for p in range(1, page_count+1) %}
-  <a href="/orders?page={{p}}{% if q %}&q={{q}}{% endif %}"
-     class="px-3 py-1 rounded border {{ 'bg-blue-600 text-white' if p==page else '' }}">{{ p }}</a>
-  {% endfor %}
+<div class="mt-4">
+  {% if page > 1 %}
+  <a class="px-3 py-1 border rounded" href="?page={{ page-1 }}{% if q %}&q={{ q }}{% endif %}">Prev</a>
+  {% endif %}
+  <span class="mx-2">Page {{ page }} of {{ page_count }}</span>
+  {% if page < page_count %} <a class="px-3 py-1 border rounded"
+    href="?page={{ page+1 }}{% if q %}&q={{ q }}{% endif %}">Next</a>
+    {% endif %}
 </div>
-{% endif %}
 {% endblock %}

@@ -10,7 +10,7 @@
   <span>Panel Code: {{ order.style_panel_code or '-' }}</span>
 </div>
 
-<div class="flex gap-3 mb-4 items-center">
+<div class="flex flex-wrap gap-3 mb-4 items-center">
   <form method="get">
     <input type="hidden" name="type" value="">
     <button class="px-3 py-1 rounded border {{ '' if f_type else 'bg-blue-600 text-white' }}">All</button>
@@ -35,6 +35,13 @@
 
   <form class="ml-2" action="/orders/{{ order.id }}/items/new" method="post">
     <button class="px-3 py-1 rounded border">Add Item</button>
+  </form>
+
+  <!-- DELETE ORDER button -->
+  <form class="ml-2" action="/orders/{{ order.id }}" method="post"
+    onsubmit="return confirm('Delete this entire order? This cannot be undone.');">
+    <input type="hidden" name="_method" value="delete">
+    <button class="px-3 py-1 rounded border border-red-500 text-red-600">Delete Order</button>
   </form>
 </div>
 
