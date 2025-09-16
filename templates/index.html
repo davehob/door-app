@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Orders</h1>
+
+<form method="get" action="/" class="mb-4">
+  <input type="text" name="q" value="{{ q or '' }}" placeholder="Search job id" class="border rounded px-2 py-1">
+  <button class="bg-blue-600 text-white px-3 py-1 rounded">Search</button>
+</form>
+
+<table class="w-full bg-white shadow-sm border">
+  <thead class="bg-gray-100">
+    <tr>
+      <th class="p-2">ID</th>
+      <th class="p-2">Job ID</th>
+      <th class="p-2">Created</th>
+      <th class="p-2">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for o in orders %}
+    <tr class="border-t">
+      <td class="p-2">{{ o.id }}</td>
+      <td class="p-2">{{ o.job_id }}</td>
+      <td class="p-2">{{ o.created_at.strftime("%Y-%m-%d %H:%M") if o.created_at else "-" }}</td>
+      <td class="p-2">
+        <a class="text-blue-600 mr-2" href="/orders/{{ o.id }}">Open</a>
+        <a class="text-blue-600 mr-2" href="{{ request.url_for('order_settings_get', order_id=o.id) }}">Settings</a>
+        <form action="/orders/{{ o.id }}" method="post" style="display:inline"
+          onsubmit="return confirm('Delete order #{{ o.id }}?');">
+          <input type="hidden" name="_method" value="delete">
+          <button class="text-red-600">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr>
+      <td class="p-4 text-gray-500" colspan="4">No orders yet.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="mt-8">
+  <h2 class="text-xl font-semibold mb-2">Quick Upload</h2>
+  <form action="/upload" method="post" enctype="multipart/form-data" class="flex gap-2">
+    <input type="text" name="job_id" placeholder="Job ID (optional)" class="border rounded px-2 py-1">
+    <input type="file" name="file" required>
+    <button class="bg-blue-600 text-white px-3 py-1 rounded">Upload PDF</button>
+  </form>
+</div>
+{% endblock %}
