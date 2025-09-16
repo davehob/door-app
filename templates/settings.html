@@ -1,8 +1,18 @@
 {% extends "base.html" %}
 {% block content %}
-<h1 class="text-2xl font-semibold mb-4">Settings — Order #{{ order.id }} ({{ order.job_id }})</h1>
+<h1 class="text-2xl font-semibold mb-4">
+  Settings — Order #{{ order.id }} ({{ order.job_id }})
+</h1>
 
-<form method="post" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
+{% if request.query_params.get("saved") %}
+<div class="mb-4 p-3 rounded bg-green-100 text-green-800 border border-green-200">
+  Settings saved.
+</div>
+{% endif %}
+
+<form method="post" action="{{ request.url_for('order_settings_post', order_id=order.id) }}"
+  class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
+
   <div>
     <label class="block text-sm text-gray-600 mb-1">Dealer Code</label>
     <input name="dealer_code" value="{{ order.dealer_code or '' }}" class="border rounded px-2 py-1 w-full">
@@ -57,8 +67,8 @@
   </div>
 
   <div class="md:col-span-2">
-    <button class="bg-blue-600 text-white px-4 py-2 rounded">Save</button>
-    <a class="ml-4 text-blue-600" href="/orders/{{ order.id }}">Back</a>
+    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Save</button>
+    <a class="ml-4 text-blue-600" href="{{ request.url_for('order_detail', order_id=order.id) }}">Back</a>
   </div>
 </form>
 {% endblock %}
