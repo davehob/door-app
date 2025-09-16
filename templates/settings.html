@@ -1,74 +1,56 @@
-{% extends "base.html" %}
-{% block content %}
-<h1 class="text-2xl font-semibold mb-4">
-  Settings — Order #{{ order.id }} ({{ order.job_id }})
-</h1>
+<!doctype html>
+<html>
 
-{% if request.query_params.get("saved") %}
-<div class="mb-4 p-3 rounded bg-green-100 text-green-800 border border-green-200">
-  Settings saved.
-</div>
-{% endif %}
+<head>
+  <meta charset="utf-8">
+  <title>Settings — Order #{{ order.id }}</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
 
-<form method="post" action="{{ request.url_for('order_settings_post', order_id=order.id) }}"
-  class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
+<body>
+  <nav><a href="/">Orders</a> • <a href="/orders/{{ order.id }}">Order</a></nav>
+  <h1>Settings — Order #{{ order.id }} ({{ order.job_id }})</h1>
 
-  <div>
-    <label class="block text-sm text-gray-600 mb-1">Dealer Code</label>
-    <input name="dealer_code" value="{{ order.dealer_code or '' }}" class="border rounded px-2 py-1 w-full">
-  </div>
-  <div>
-    <label class="block text-sm text-gray-600 mb-1">Job Name</label>
-    <input name="job_name" value="{{ order.job_name or '' }}" class="border rounded px-2 py-1 w-full">
-  </div>
-  <div>
-    <label class="block text-sm text-gray-600 mb-1">Finish</label>
-    <input name="finish" value="{{ order.finish or '' }}" class="border rounded px-2 py-1 w-full">
-  </div>
+  {% if ok %}<p style="color:green">{{ ok }}</p>{% endif %}
 
-  <div class="md:col-span-2 border-t my-2"></div>
+  <form method="post" action="/orders/{{ order.id }}/settings" enctype="application/x-www-form-urlencoded">
+    <fieldset>
+      <legend>Job</legend>
+      <label>Dealer Code <input name="dealer_code" value="{{ settings.dealer_code or '' }}"></label>
+      <label>Job Name <input name="job_name" value="{{ settings.job_name or order.job_id }}"></label>
+      <label>Finish <input name="finish" value="{{ settings.finish or '' }}"></label>
+    </fieldset>
 
-  <div>
-    <label class="block text-sm text-gray-600 mb-1">Door SFP code</label>
-    <input name="style_door_sfp" value="{{ order.style_door_sfp or '' }}" class="border rounded px-2 py-1 w-full">
-  </div>
-  <div>
-    <label class="block text-sm text-gray-600 mb-1">Door Flat code</label>
-    <input name="style_door_flat" value="{{ order.style_door_flat or '' }}" class="border rounded px-2 py-1 w-full">
-  </div>
-  <div>
-    <label class="block text-sm text-gray-600 mb-1">Drawer SFP code</label>
-    <input name="style_drawer_sfp" value="{{ order.style_drawer_sfp or '' }}" class="border rounded px-2 py-1 w-full">
-  </div>
-  <div>
-    <label class="block text-sm text-gray-600 mb-1">Drawer Flat code</label>
-    <input name="style_drawer_flat" value="{{ order.style_drawer_flat or '' }}" class="border rounded px-2 py-1 w-full">
-  </div>
-  <div>
-    <label class="block text-sm text-gray-600 mb-1">Panel code (all panels)</label>
-    <input name="style_panel_code" value="{{ order.style_panel_code or '' }}" class="border rounded px-2 py-1 w-full">
-  </div>
+    <fieldset>
+      <legend>Style Codes</legend>
+      <label>Door SFP code <input name="door_sfp_code" value="{{ settings.door_sfp_code or '' }}"></label>
+      <label>Door Flat code <input name="door_flat_code" value="{{ settings.door_flat_code or '' }}"></label>
+      <label>Drawer SFP code <input name="drawer_sfp_code" value="{{ settings.drawer_sfp_code or '' }}"></label>
+      <label>Drawer Flat code <input name="drawer_flat_code" value="{{ settings.drawer_flat_code or '' }}"></label>
+      <label>Panel code (all panels) <input name="panel_code" value="{{ settings.panel_code or '' }}"></label>
+    </fieldset>
 
-  <div class="md:col-span-2 border-t my-2"></div>
+    <fieldset>
+      <legend>Hinge</legend>
+      <label>Hinge top offset (in) <input type="number" step="0.001" name="hinge_top_offset_in"
+          value="{{ settings.hinge_top_offset_in or 3 }}"></label>
+      <label>Hinge bottom offset (in) <input type="number" step="0.001" name="hinge_bottom_offset_in"
+          value="{{ settings.hinge_bottom_offset_in or 3 }}"></label>
+      <label>Hinge size (in) <input type="number" step="0.001" name="hinge_size_in"
+          value="{{ settings.hinge_size_in or 5 }}"></label>
+    </fieldset>
 
-  <div>
-    <label class="block text-sm text-gray-600 mb-1">Hinge top offset (in)</label>
-    <input name="hinge_top_offset_in" value="{{ order.hinge_top_offset_in or '' }}"
-      class="border rounded px-2 py-1 w-full">
-  </div>
-  <div>
-    <label class="block text-sm text-gray-600 mb-1">Hinge bottom offset (in)</label>
-    <input name="hinge_bottom_offset_in" value="{{ order.hinge_bottom_offset_in or '' }}"
-      class="border rounded px-2 py-1 w-full">
-  </div>
-  <div>
-    <label class="block text-sm text-gray-600 mb-1">Hinge size (in)</label>
-    <input name="hinge_size_in" value="{{ order.hinge_size_in or '' }}" class="border rounded px-2 py-1 w-full">
-  </div>
+    <p><button>Save</button></p>
+  </form>
 
-  <div class="md:col-span-2">
-    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Save</button>
-    <a class="ml-4 text-blue-600" href="{{ request.url_for('order_detail', order_id=order.id) }}">Back</a>
-  </div>
-</form>
-{% endblock %}
+  <hr>
+
+  <h3>Upload PDF to this order</h3>
+  <form method="post" action="/upload" enctype="multipart/form-data">
+    <input name="job_id" value="{{ order.job_id }}">
+    <input type="file" name="file" accept="application/pdf">
+    <button>Upload</button>
+  </form>
+</body>
+
+</html>

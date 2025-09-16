@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Order #{{ order.id }}</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+
+<body>
+  <nav><a href="/">Orders</a> • <a href="/orders/{{ order.id }}/settings">Settings</a></nav>
+  <h1>Order #{{ order.id }} — {{ order.job_id }}</h1>
+
+  {% if ok %}<p style="color:green">{{ ok }}</p>{% endif %}
+
+  {% if settings %}
+  <h3>Settings</h3>
+  <ul>
+    <li>Dealer: {{ settings.dealer_code }}</li>
+    <li>Finish: {{ settings.finish }}</li>
+    <li>Codes: Door SFP {{ settings.door_sfp_code }}, Door Flat {{ settings.door_flat_code }},
+      Drawer SFP {{ settings.drawer_sfp_code }}, Drawer Flat {{ settings.drawer_flat_code }},
+      Panel {{ settings.panel_code }}</li>
+    <li>Hinge: top {{ settings.hinge_top_offset_in }}", bottom {{ settings.hinge_bottom_offset_in }}", size {{
+      settings.hinge_size_in }}"</li>
+  </ul>
+  {% endif %}
+
+  <h3>Items</h3>
+  <table border="1" cellspacing="0" cellpadding="6">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Type</th>
+        <th>Style</th>
+        <th>Qty</th>
+        <th>W</th>
+        <th>H</th>
+        <th>Note</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td>{{ it.id }}</td>
+        <td>{{ it.type }}</td>
+        <td>{{ it.style }}</td>
+        <td>{{ it.qty }}</td>
+        <td>{{ '%.3f'|format(it.width_in) }}</td>
+        <td>{{ '%.3f'|format(it.height_in) }}</td>
+        <td>{{ it.note }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>Add item</h3>
+  <form method="post" action="/orders/{{ order.id }}/items">
+    <select name="type">
+      <option>Door</option>
+      <option>Drawer Front</option>
+      <option>Panel</option>
+    </select>
+    <input name="style" placeholder="Style (optional)">
+    <input name="qty" type="number" min="1" value="1">
+    <input name="width_in" type="number" step="0.001" placeholder="Width (in)">
+    <input name="height_in" type="number" step="0.001" placeholder="Height (in)">
+    <input name="note" placeholder="Note">
+    <button>Add</button>
+  </form>
+</body>
+
+</html>

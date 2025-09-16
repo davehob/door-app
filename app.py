@@ -1,172 +1,133 @@
-import io
 import os
 from datetime import datetime
-from pathlib import Path
+from typing import Optional, List, Dict, Any
 
-import pdfplumber
-from fastapi import FastAPI, Request, UploadFile, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Request, UploadFile, File, Form
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, create_engine, Text
-from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
-# -------------------------------
-# Paths
-# -------------------------------
-BASE_DIR = Path(__file__).parent
-TEMPLATES_DIR = BASE_DIR / "templates"
-STATIC_DIR = BASE_DIR / "static"
+from starlette.status import HTTP_302_FOUND
+from starlette.middleware.cors import CORSMiddleware
 
-# -------------------------------
-# FastAPI setup
-# -------------------------------
+from db import (
+    get_engine, ensure_schema, list_orders, get_order, create_order,
+    delete_order, list_items_for_order, upsert_settings_for_order,
+    get_settings_for_order, add_item_to_order
+)
+from parsing import parse_pdf_bytes
+
+# ------------ App & paths ------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+os.makedirs(STATIC_DIR, exist_ok=True)
+
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
+)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
-# Only mount static if it exists
-if STATIC_DIR.exists():
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+# Single, unified DB path
+DB_PATH = os.getenv("DB_PATH", os.path.join(BASE_DIR, "doorapp.db"))
+engine = get_engine(DB_PATH)
+ensure_schema(engine)
 
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+# ------------ Helpers ------------
+def flash_redirect(url: str, request: Request, message: str = "") -> RedirectResponse:
+    # extremely simple no-cookie flash: add ?ok=... to url
+    if message:
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}ok={message}"
+    return RedirectResponse(url, status_code=HTTP_302_FOUND)
 
-# -------------------------------
-# Database setup
-# -------------------------------
-DATABASE_URL = f"sqlite:///{BASE_DIR}/doorapp.db"
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-Session = sessionmaker(bind=engine)
-Base = declarative_base()
-
-# -------------------------------
-# Models
-# -------------------------------
-class Order(Base):
-    __tablename__ = "orders"
-    id = Column(Integer, primary_key=True)
-    job_id = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    settings = relationship("OrderSettings", uselist=False, back_populates="order")
-    items = relationship("Item", back_populates="order", cascade="all, delete-orphan")
-
-class Item(Base):
-    __tablename__ = "items"
-    id = Column(Integer, primary_key=True)
-    order_id = Column(Integer, ForeignKey("orders.id"))
-    type = Column(String)      # Door, Drawer Front, Panel
-    style = Column(String)     # SFP, Flat, etc.
-    qty = Column(Integer)
-    width_in = Column(String)
-    height_in = Column(String)
-    note = Column(Text)
-    source_page = Column(Integer)
-    order = relationship("Order", back_populates="items")
-
-class OrderSettings(Base):
-    __tablename__ = "order_settings"
-    id = Column(Integer, primary_key=True)
-    order_id = Column(Integer, ForeignKey("orders.id"))
-    dealer_code = Column(String)
-    job_name = Column(String)
-    finish = Column(String)
-
-    door_sfp_code = Column(String)
-    door_flat_code = Column(String)
-    drawer_sfp_code = Column(String)
-    drawer_flat_code = Column(String)
-    panel_code = Column(String)
-
-    hinge_top_offset = Column(Integer)
-    hinge_bottom_offset = Column(Integer)
-    hinge_size = Column(Integer)
-
-    order = relationship("Order", back_populates="settings")
-
-Base.metadata.create_all(engine)
-
-# -------------------------------
-# PDF Parsing Stub
-# -------------------------------
-def parse_pdf_bytes(pdf_bytes: bytes):
-    rows = []
-    try:
-        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-            for i, page in enumerate(pdf.pages, start=1):
-                text = page.extract_text() or ""
-                for line in text.splitlines():
-                    if "Door" in line or "Drawer" in line or "Panel" in line:
-                        rows.append({
-                            "type": "Door" if "Door" in line else "Drawer Front",
-                            "style": "SFP" if "SFP" in line else "Flat",
-                            "qty": 1,
-                            "width_in": "10.0",
-                            "height_in": "20.0",
-                            "note": line.strip(),
-                            "source_page": i
-                        })
-    except Exception as e:
-        print("PDF parse error:", e)
-    return rows
-
-# -------------------------------
-# Routes
-# -------------------------------
+# ------------ Routes ------------
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request):
-    with Session() as s:
-        orders = s.query(Order).order_by(Order.id.desc()).all()
+def index(request: Request, q: Optional[str] = None, page: int = 1):
+    orders = list_orders(engine, q=q, page=page, page_size=50)
+    ok = request.query_params.get("ok", "")
     return templates.TemplateResponse(
-        "orders_list.html",
-        {"request": request, "orders": orders, "page": 1, "page_count": 1}
+        "index.html",
+        {"request": request, "orders": orders, "q": q or "", "ok": ok}
     )
 
-@app.post("/upload")
-async def upload(file: UploadFile, job_id: str = Form(None)):
-    pdf_bytes = await file.read()
-    rows = parse_pdf_bytes(pdf_bytes)
-
-    with Session() as s:
-        order = Order(job_id=job_id or f"job-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}")
-        s.add(order)
-        s.commit()
-
-        for r in rows:
-            item = Item(
-                order_id=order.id,
-                type=r["type"],
-                style=r["style"],
-                qty=r["qty"],
-                width_in=r["width_in"],
-                height_in=r["height_in"],
-                note=r["note"],
-                source_page=r["source_page"],
-            )
-            s.add(item)
-        s.commit()
-
-    return RedirectResponse(url=f"/orders/{order.id}", status_code=303)
+# convenience: /settings -> last order settings (if exists)
+@app.get("/settings")
+def settings_root_redirect(request: Request):
+    orders = list_orders(engine, page=1, page_size=1)
+    if not orders:
+        return flash_redirect("/", request, "No orders yet")
+    last_id = orders[0]["id"]
+    return RedirectResponse(f"/orders/{last_id}/settings", status_code=HTTP_302_FOUND)
 
 @app.get("/orders/{order_id}", response_class=HTMLResponse)
 def order_detail(request: Request, order_id: int):
-    with Session() as s:
-        order = s.query(Order).get(order_id)
-        if not order:
-            return HTMLResponse("Order not found", status_code=404)
-    return templates.TemplateResponse("order_detail.html", {"request": request, "order": order})
+    order = get_order(engine, order_id)
+    if not order:
+        return RedirectResponse("/", status_code=HTTP_302_FOUND)
+    items = list_items_for_order(engine, order_id)
+    settings = get_settings_for_order(engine, order_id) or {}
+    ok = request.query_params.get("ok", "")
+    return templates.TemplateResponse(
+        "order.html",
+        {"request": request, "order": order, "items": items, "settings": settings, "ok": ok}
+    )
 
+@app.post("/upload")
+async def upload(job_id: str = Form(...), file: UploadFile = File(...)):
+    pdf_bytes = await file.read()
+    rows = parse_pdf_bytes(pdf_bytes)  # returns list of dicts incl. type Door/Drawer Front/Panel
+    oid = create_order(engine, job_id)
+    saved = 0
+    for r in rows:
+        add_item_to_order(
+            engine,
+            order_id=oid,
+            type=r.get("type"),            # Door / Drawer Front / Panel
+            style=r.get("style_final", ""),# style_final from parser if present
+            qty=int(r.get("qty", 1)),
+            width_in=float(r.get("width_in", 0)),
+            height_in=float(r.get("height_in", 0)),
+            note=r.get("note", "")
+        )
+        saved += 1
+    return JSONResponse({"id": oid, "job_id": job_id, "created_at": datetime.utcnow().isoformat() + "Z", "saved_items": saved})
+
+@app.post("/orders/{order_id}/delete")
+def remove_order(order_id: int):
+    delete_order(engine, order_id)
+    return RedirectResponse("/", status_code=HTTP_302_FOUND)
+
+# ----- Settings (per-order) -----
 @app.get("/orders/{order_id}/settings", response_class=HTMLResponse)
-def order_settings_get(request: Request, order_id: int):
-    with Session() as s:
-        order = s.query(Order).get(order_id)
-        if not order:
-            return HTMLResponse("Order not found", status_code=404)
-        settings = order.settings or OrderSettings(order_id=order.id)
-        if not order.settings:
-            s.add(settings)
-            s.commit()
-    return templates.TemplateResponse("settings.html", {"request": request, "order": order, "settings": settings})
+def get_settings(request: Request, order_id: int):
+    order = get_order(engine, order_id)
+    if not order:
+        return RedirectResponse("/", status_code=HTTP_302_FOUND)
+    settings = get_settings_for_order(engine, order_id) or {
+        "dealer_code": "",
+        "job_name": order["job_id"],
+        "finish": "",
+        "door_sfp_code": "",
+        "door_flat_code": "",
+        "drawer_sfp_code": "",
+        "drawer_flat_code": "",
+        "panel_code": "",
+        "hinge_top_offset_in": 3.0,
+        "hinge_bottom_offset_in": 3.0,
+        "hinge_size_in": 5.0
+    }
+    ok = request.query_params.get("ok", "")
+    return templates.TemplateResponse(
+        "settings.html",
+        {"request": request, "order": order, "settings": settings, "ok": ok}
+    )
 
 @app.post("/orders/{order_id}/settings")
-async def order_settings_post(
+async def post_settings(
     request: Request,
     order_id: int,
     dealer_code: str = Form(""),
@@ -177,33 +138,37 @@ async def order_settings_post(
     drawer_sfp_code: str = Form(""),
     drawer_flat_code: str = Form(""),
     panel_code: str = Form(""),
-    hinge_top_offset: int = Form(3),
-    hinge_bottom_offset: int = Form(3),
-    hinge_size: int = Form(5),
+    hinge_top_offset_in: float = Form(3.0),
+    hinge_bottom_offset_in: float = Form(3.0),
+    hinge_size_in: float = Form(5.0),
 ):
-    with Session() as s:
-        order = s.query(Order).get(order_id)
-        if not order:
-            return HTMLResponse("Order not found", status_code=404)
+    payload = {
+        "dealer_code": dealer_code.strip(),
+        "job_name": job_name.strip(),
+        "finish": finish.strip(),
+        "door_sfp_code": door_sfp_code.strip(),
+        "door_flat_code": door_flat_code.strip(),
+        "drawer_sfp_code": drawer_sfp_code.strip(),
+        "drawer_flat_code": drawer_flat_code.strip(),
+        "panel_code": panel_code.strip(),
+        "hinge_top_offset_in": float(hinge_top_offset_in),
+        "hinge_bottom_offset_in": float(hinge_bottom_offset_in),
+        "hinge_size_in": float(hinge_size_in),
+    }
+    upsert_settings_for_order(engine, order_id, payload)
+    return flash_redirect(f"/orders/{order_id}/settings", request, "Settings saved")
 
-        if not order.settings:
-            settings = OrderSettings(order_id=order.id)
-            s.add(settings)
-        else:
-            settings = order.settings
-
-        settings.dealer_code = dealer_code
-        settings.job_name = job_name
-        settings.finish = finish
-        settings.door_sfp_code = door_sfp_code
-        settings.door_flat_code = door_flat_code
-        settings.drawer_sfp_code = drawer_sfp_code
-        settings.drawer_flat_code = drawer_flat_code
-        settings.panel_code = panel_code
-        settings.hinge_top_offset = hinge_top_offset
-        settings.hinge_bottom_offset = hinge_bottom_offset
-        settings.hinge_size = hinge_size
-
-        s.commit()
-
-    return RedirectResponse(url=f"/orders/{order_id}/settings", status_code=303)
+# ----- Manual add/split items (basic) -----
+@app.post("/orders/{order_id}/items")
+def add_item(
+    order_id: int,
+    type: str = Form(...),               # 'Door' | 'Drawer Front' | 'Panel'
+    style: str = Form(""),
+    qty: int = Form(1),
+    width_in: float = Form(...),
+    height_in: float = Form(...),
+    note: str = Form("")
+):
+    add_item_to_order(engine, order_id, type=type, style=style, qty=qty,
+                      width_in=width_in, height_in=height_in, note=note)
+    return RedirectResponse(f"/orders/{order_id}?ok=Item+added", status_code=HTTP_302_FOUND)

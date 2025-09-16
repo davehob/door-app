@@ -1,51 +1,120 @@
-{% extends "base.html" %}
-{% block content %}
-<h1 class="text-2xl font-semibold mb-4">Orders</h1>
+<!doctype html>
+<html>
 
-<form method="get" action="/" class="mb-4">
-  <input type="text" name="q" value="{{ q or '' }}" placeholder="Search job id" class="border rounded px-2 py-1">
-  <button class="bg-blue-600 text-white px-3 py-1 rounded">Search</button>
-</form>
+<head>
+  <meta charset="utf-8">
+  <title>Orders</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <style>
+    .grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: 1fr;
+    }
 
-<table class="w-full bg-white shadow-sm border">
-  <thead class="bg-gray-100">
-    <tr>
-      <th class="p-2">ID</th>
-      <th class="p-2">Job ID</th>
-      <th class="p-2">Created</th>
-      <th class="p-2">Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for o in orders %}
-    <tr class="border-t">
-      <td class="p-2">{{ o.id }}</td>
-      <td class="p-2">{{ o.job_id }}</td>
-      <td class="p-2">{{ o.created_at.strftime("%Y-%m-%d %H:%M") if o.created_at else "-" }}</td>
-      <td class="p-2">
-        <a class="text-blue-600 mr-2" href="/orders/{{ o.id }}">Open</a>
-        <a class="text-blue-600 mr-2" href="{{ request.url_for('order_settings_get', order_id=o.id) }}">Settings</a>
-        <form action="/orders/{{ o.id }}" method="post" style="display:inline"
-          onsubmit="return confirm('Delete order #{{ o.id }}?');">
-          <input type="hidden" name="_method" value="delete">
-          <button class="text-red-600">Delete</button>
-        </form>
-      </td>
-    </tr>
-    {% else %}
-    <tr>
-      <td class="p-4 text-gray-500" colspan="4">No orders yet.</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+    .card {
+      border: 1px solid #ddd;
+      padding: 1rem;
+      border-radius: .5rem;
+      background: #fafafa;
+    }
 
-<div class="mt-8">
-  <h2 class="text-xl font-semibold mb-2">Quick Upload</h2>
-  <form action="/upload" method="post" enctype="multipart/form-data" class="flex gap-2">
-    <input type="text" name="job_id" placeholder="Job ID (optional)" class="border rounded px-2 py-1">
-    <input type="file" name="file" required>
-    <button class="bg-blue-600 text-white px-3 py-1 rounded">Upload PDF</button>
-  </form>
-</div>
-{% endblock %}
+    .row {
+      display: flex;
+      gap: .5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .muted {
+      color: #666;
+    }
+
+    .w100 {
+      width: 100%;
+    }
+
+    @media (min-width: 820px) {
+      .grid {
+        grid-template-columns: 1fr 2fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Orders</h1>
+  </header>
+
+  {% if ok %}<p style="color:green">{{ ok }}</p>{% endif %}
+
+  <div class="grid">
+    <!-- Create/Upload -->
+    <section class="card">
+      <h2 style="margin-top:0">Create a new order</h2>
+      <p class="muted">Enter a Job ID and upload the PDF report. This will create the order and parse Doors/Drawer
+        Fronts/Panels automatically.</p>
+      <form class="w100" method="post" action="/upload" enctype="multipart/form-data">
+        <div class="row">
+          <label>Job ID
+            <input name="job_id" placeholder="e.g. MEYER-2025-09-05" required>
+          </label>
+          <label>PDF
+            <input type="file" name="file" accept="application/pdf" required>
+          </label>
+          <button>Upload PDF</button>
+        </div>
+      </form>
+      <p class="muted" style="margin:.5rem 0 0">Tip: You can still add items manually later on the order page.</p>
+    </section>
+
+    <!-- Search + Table -->
+    <section>
+      <form method="get" action="/" class="row" style="margin-bottom:.5rem">
+        <input name="q" placeholder="Search job id" value="{{ q }}">
+        <button>Search</button>
+      </form>
+
+      <table border="1" cellspacing="0" cellpadding="6" class="w100">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Job ID</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if orders %}
+          {% for o in orders %}
+          <tr>
+            <td>{{ o.id }}</td>
+            <td>{{ o.job_id }}</td>
+            <td>{{ o.created_at }}</td>
+            <td>
+              <a href="/orders/{{ o.id }}">View</a> |
+              <a href="/orders/{{ o.id }}/settings">Settings</a> |
+              <form method="post" action="/orders/{{ o.id }}/delete" style="display:inline"
+                onsubmit="return confirm('Delete order {{ o.id }}?');">
+                <button>Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+          {% else %}
+          <tr>
+            <td colspan="4" style="text-align:center" class="muted">
+              No orders yet. Use the form above to upload your first PDF.
+            </td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+
+      <p><a href="/settings">Go to latest order settings</a></p>
+    </section>
+  </div>
+</body>
+
+</html>

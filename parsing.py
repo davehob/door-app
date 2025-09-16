@@ -1,116 +1,95 @@
-import io, math, re
-from fractions import Fraction
-from typing import Optional, Iterable, Dict, Any
+import io
+import math
+import re
+from typing import List, Dict, Any
 import pdfplumber
 
-# Doors & Drawer Fronts
-LINE_DOOR_DR = re.compile(
-    r"^(?P<unit_blob>(?:\d+\)\d+\s+)+)?"
-    r"(?P<qty>\d+)\s+"
-    r"(?P<w_whole>\d+)(?:\s+(?P<w_frac>\d+/\d+))?\s+x\s+"
-    r"(?P<h_whole>\d+)(?:\s+(?P<h_frac>\d+/\d+))?\s+"
-    r"(?P<type>Door|Drawer Front)"
-    r"(?:\s+\((?P<style>[^)]+)\))?",
-    re.IGNORECASE,
-)
+FRACT_RE = re.compile(r"^(\d+)\s+(\d+)/(\d+)$")  # e.g., '14 7/8'
 
-# Panels (e.g., "Flat Panel", "Side Panel Left/Right", "Side Panel")
-LINE_PANEL = re.compile(
-    r"^(?P<unit_blob>(?:\d+\)\d+\s+)+)?"
-    r"(?P<qty>\d+)\s+"
-    r"(?P<w_whole>\d+)(?:\s+(?P<w_frac>\d+/\d+))?\s+x\s+"
-    r"(?P<h_whole>\d+)(?:\s+(?P<h_frac>\d+/\d+))?\s+"
-    r"(?P<panel>(?:.*\bPanel\b.*))$",
-    re.IGNORECASE,
-)
+def frac_to_dec(s: str) -> float:
+    s = (s or "").strip()
+    if not s:
+        return 0.0
+    # 14 7/8
+    m = FRACT_RE.match(s)
+    if m:
+        whole = int(m.group(1))
+        num = int(m.group(2))
+        den = int(m.group(3))
+        return round(whole + num/den, 3)
+    # 7/8 only
+    if "/" in s and " " not in s:
+        num, den = s.split("/", 1)
+        return round(int(num)/int(den), 3)
+    try:
+        return round(float(s), 3)
+    except Exception:
+        return 0.0
 
-UNIT_TOKEN_RE = re.compile(r"(?P<qty>\d+)\)(?P<unit>\d+)")
+def classify(row_text: str) -> str:
+    t = row_text.lower()
+    if "drawer front" in t:
+        return "Drawer Front"
+    if "door" in t:
+        return "Door"
+    if "panel" in t or "side panel" in t or "flat panel" in t:
+        return "Panel"
+    return "Door"  # default
 
-def ceil_to_decimals(v: float, places: int) -> float:
-    return math.ceil(v * (10 ** places)) / (10 ** places)
+def panel_kind(note_text: str) -> str:
+    t = (note_text or "").lower()
+    if "side panel left" in t or "panel left" in t:
+        return "Side Panel Left"
+    if "side panel right" in t or "panel right" in t:
+        return "Side Panel Right"
+    if "flat panel" in t:
+        return "Flat Panel"
+    return "Panel"
 
-def frac_to_up_decimal(whole: str, frac: Optional[str], places: int) -> float:
-    val = float(whole)
-    if frac:
-        num, den = frac.split("/")
-        val += float(Fraction(int(num), int(den)))
-    return ceil_to_decimals(val, places)
+UNIT_TOKEN_RE = re.compile(r"(?P<qty>\d+)\)(?P<unit>\d+)")  # "2)12" -> qty=2, unit=12
 
-def unit_blob_to_note(blob: Optional[str], joiner: str) -> str:
-    if not blob: return ""
-    parts = [f"{m.group('qty')}x#{m.group('unit')}" for m in UNIT_TOKEN_RE.finditer(blob.strip())]
-    return joiner.join(parts)
-
-def normalize_type(t: str) -> str:
-    tl = (t or "").lower()
-    if tl.startswith("drawer front"): return "Drawer Front"
-    return "Door"
-
-def style_label(style_raw: Optional[str]) -> str:
-    s = (style_raw or "").lower()
-    if "sfp" in s: return "SFP"
-    if "flatdr" in s or "flat" in s: return "Flat"
-    return ""
-
-def parse_pdf(pdf_bytes: bytes, places: int, joiner: str) -> Iterable[Dict[str, Any]]:
+def parse_pdf_bytes(pdf_bytes: bytes) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-        for page_num, page in enumerate(pdf.pages, start=1):
-            text = page.extract_text() or ""
-            for raw in text.splitlines():
-                line = raw.strip()
-                if "Continued to Next Page" in line or "Continued from Last Page" in line:
-                    continue
+        for p in pdf.pages:
+            text = p.extract_text() or ""
+            lines = [ln for ln in text.splitlines() if ln.strip()]
+            for ln in lines:
+                # extremely simple row spotting; you can harden this for your exact forms
+                if "Door" in ln or "Drawer Front" in ln or "Panel" in ln:
+                    cols = re.split(r"\s{2,}", ln.strip())
+                    if len(cols) < 5:
+                        continue
+                    # crude assumptions: [style, qty, width, height, note...]
+                    style_raw = cols[0]
+                    qty = int(re.sub(r"\D", "", cols[1]) or "1")
+                    width_in = frac_to_dec(cols[2])
+                    height_in = frac_to_dec(cols[3])
+                    note_str = " ".join(cols[4:]).strip()
 
-                m1 = LINE_DOOR_DR.search(line)
-                if m1:
-                    unit_blob = m1.group("unit_blob") or ""
-                    qty = int(m1.group("qty"))
-                    width  = frac_to_up_decimal(m1.group("w_whole"), m1.group("w_frac"), places)
-                    height = frac_to_up_decimal(m1.group("h_whole"), m1.group("h_frac"), places)
-                    t_norm = normalize_type(m1.group("type"))
-                    lbl = style_label(m1.group("style"))
+                    # attach unit tokens (1)9 => 1x#9
+                    tokens = []
+                    for m in UNIT_TOKEN_RE.finditer(ln):
+                        tokens.append(f'{m.group("qty")}x#{m.group("unit")}')
+                    unit_note = " | ".join(tokens)
+                    final_note = f"{note_str}".strip()
+                    if unit_note:
+                        final_note = (final_note + " | " + unit_note).strip(" |")
 
-                    unit_note = unit_blob_to_note(unit_blob, joiner)
-                    base_note = t_norm
-                    note = base_note if not unit_note else f"{base_note}{joiner}{unit_note}"
+                    t = classify(ln)
+                    if t == "Panel":
+                        pk = panel_kind(note_str)
+                        if pk and pk != "Panel":
+                            final_note = (final_note + f" | {pk}").strip(" |")
 
-                    yield {
-                        "type": t_norm, "style": lbl, "qty": qty,
-                        "width_in": f"{width:.{places}f}",
-                        "height_in": f"{height:.{places}f}",
-                        "note": note, "source_page": page_num,
-                        "hinge": None
-                    }
-                    continue
-
-                m2 = LINE_PANEL.search(line)
-                if m2:
-                    unit_blob = m2.group("unit_blob") or ""
-                    qty = int(m2.group("qty"))
-                    width  = frac_to_up_decimal(m2.group("w_whole"), m2.group("w_frac"), places)
-                    height = frac_to_up_decimal(m2.group("h_whole"), m2.group("h_frac"), places)
-
-                    panel_text = m2.group("panel")
-                    panel_note_tokens = []
-                    pl = panel_text.lower()
-                    if "side panel" in pl and "left" in pl:
-                        panel_note_tokens.append("Side Panel Left")
-                    elif "side panel" in pl and "right" in pl:
-                        panel_note_tokens.append("Side Panel Right")
-                    elif "side panel" in pl:
-                        panel_note_tokens.append("Side Panel")
-                    elif "flat panel" in pl:
-                        panel_note_tokens.append("Flat Panel")
-                    else:
-                        panel_note_tokens.append("Panel")
-
-                    unit_note = unit_blob_to_note(unit_blob, joiner)
-                    note = joiner.join([t for t in (panel_note_tokens[0], unit_note) if t])
-
-                    yield {
-                        "type": "Panel", "style": "Panel", "qty": qty,
-                        "width_in": f"{width:.{places}f}",
-                        "height_in": f"{height:.{places}f}",
-                        "note": note or "Panel", "source_page": page_num,
-                        "hinge": None
-                    }
+                    # style mapping left to UI settings
+                    out.append({
+                        "type": t,
+                        "style_raw": style_raw,
+                        "style_final": "",  # filled by settings later when exporting
+                        "qty": qty,
+                        "width_in": width_in,
+                        "height_in": height_in,
+                        "note": final_note
+                    })
+    return out
