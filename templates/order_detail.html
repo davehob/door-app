@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Order #{{ order.id }} — {{ order.job_id }}</h1>
+
+<div class="flex gap-3 mb-4">
+  <form method="get">
+    <input type="hidden" name="type" value="">
+    <button class="px-3 py-1 rounded border {{ '' if f_type else 'bg-blue-600 text-white' }}">All</button>
+  </form>
+  <form method="get">
+    <input type="hidden" name="type" value="Door">
+    <button class="px-3 py-1 rounded border {{ 'bg-blue-600 text-white' if f_type=='Door' else '' }}">Door</button>
+  </form>
+  <form method="get">
+    <input type="hidden" name="type" value="Drawer Front">
+    <button class="px-3 py-1 rounded border {{ 'bg-blue-600 text-white' if f_type=='Drawer Front' else '' }}">Drawer Front</button>
+  </form>
+  <a class="ml-auto text-blue-600" href="/orders/{{ order.id }}/export.xlsx">Export Excel</a>
+  <a class="text-blue-600" href="/orders/{{ order.id }}/items.csv">CSV</a>
+  <form action="/orders/{{ order.id }}" method="post" onsubmit="return confirm('Delete order?')" >
+    <input type="hidden" name="_method" value="delete">
+    <button class="text-red-600">Delete Order</button>
+  </form>
+</div>
+
+<div id="items">
+  {% include "_items_table.html" %}
+</div>
+{% endblock %}

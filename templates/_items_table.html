@@ -1,0 +1,70 @@
+<table class="w-full bg-white shadow-sm border">
+  <thead class="bg-gray-100">
+    <tr>
+      <th class="p-2">#</th>
+      <th class="p-2">Type</th>
+      <th class="p-2">Style</th>
+      <th class="p-2">Qty</th>
+      <th class="p-2">Width</th>
+      <th class="p-2">Height</th>
+      <th class="p-2">Note</th>
+      <th class="p-2">Page</th>
+      <th class="p-2">Del</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for it in items %}
+    <tr class="border-t">
+      <td class="p-2">{{ loop.index }}</td>
+      <td class="p-2">{{ it.type }}</td>
+      <td class="p-2">{{ it.style }}</td>
+
+      <!-- Inline edit cells via htmx -->
+      <td class="p-2">
+        <input class="w-16 border px-1"
+               value="{{ it.qty }}"
+               hx-post="/items/{{ it.id }}/edit"
+               hx-vals='{"field":"qty"}'
+               hx-trigger="change"
+               hx-target="closest tr"
+               hx-swap="outerHTML">
+      </td>
+      <td class="p-2">
+        <input class="w-24 border px-1"
+               value="{{ it.width_in }}"
+               hx-post="/items/{{ it.id }}/edit"
+               hx-vals='{"field":"width_in"}'
+               hx-trigger="change"
+               hx-target="closest tr"
+               hx-swap="outerHTML">
+      </td>
+      <td class="p-2">
+        <input class="w-24 border px-1"
+               value="{{ it.height_in }}"
+               hx-post="/items/{{ it.id }}/edit"
+               hx-vals='{"field":"height_in"}'
+               hx-trigger="change"
+               hx-target="closest tr"
+               hx-swap="outerHTML">
+      </td>
+      <td class="p-2">
+        <input class="w-64 border px-1"
+               value="{{ it.note }}"
+               hx-post="/items/{{ it.id }}/edit"
+               hx-vals='{"field":"note"}'
+               hx-trigger="change"
+               hx-target="closest tr"
+               hx-swap="outerHTML">
+      </td>
+      <td class="p-2">{{ it.source_page }}</td>
+      <td class="p-2 text-center">
+        <button class="text-red-600"
+                hx-delete="/items/{{ it.id }}"
+                hx-target="closest tr"
+                hx-swap="outerHTML">✕</button>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
