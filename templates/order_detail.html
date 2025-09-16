@@ -1,8 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
-<h1 class="text-2xl font-semibold mb-4">Order #{{ order.id }} — {{ order.job_id }}</h1>
+<h1 class="text-2xl font-semibold mb-2">Order #{{ order.id }} — {{ order.job_id }}</h1>
 
-<div class="flex gap-3 mb-4">
+<div class="text-sm text-gray-600 mb-4">
+  <span>Door SFP: {{ order.style_door_sfp or '-' }}</span> •
+  <span>Door Flat: {{ order.style_door_flat or '-' }}</span> •
+  <span>Drawer SFP: {{ order.style_drawer_sfp or '-' }}</span> •
+  <span>Drawer Flat: {{ order.style_drawer_flat or '-' }}</span> •
+  <span>Panel Code: {{ order.style_panel_code or '-' }}</span>
+</div>
+
+<div class="flex gap-3 mb-4 items-center">
   <form method="get">
     <input type="hidden" name="type" value="">
     <button class="px-3 py-1 rounded border {{ '' if f_type else 'bg-blue-600 text-white' }}">All</button>
@@ -13,13 +21,20 @@
   </form>
   <form method="get">
     <input type="hidden" name="type" value="Drawer Front">
-    <button class="px-3 py-1 rounded border {{ 'bg-blue-600 text-white' if f_type=='Drawer Front' else '' }}">Drawer Front</button>
+    <button class="px-3 py-1 rounded border {{ 'bg-blue-600 text-white' if f_type=='Drawer Front' else '' }}">Drawer
+      Front</button>
   </form>
-  <a class="ml-auto text-blue-600" href="/orders/{{ order.id }}/export.xlsx">Export Excel</a>
+  <form method="get">
+    <input type="hidden" name="type" value="Panel">
+    <button class="px-3 py-1 rounded border {{ 'bg-blue-600 text-white' if f_type=='Panel' else '' }}">Panel</button>
+  </form>
+
+  <a class="ml-auto text-blue-600" href="/orders/{{ order.id }}/settings">Settings</a>
+  <a class="text-blue-600" href="/orders/{{ order.id }}/export.xlsx">Export Excel</a>
   <a class="text-blue-600" href="/orders/{{ order.id }}/items.csv">CSV</a>
-  <form action="/orders/{{ order.id }}" method="post" onsubmit="return confirm('Delete order?')" >
-    <input type="hidden" name="_method" value="delete">
-    <button class="text-red-600">Delete Order</button>
+
+  <form class="ml-2" action="/orders/{{ order.id }}/items/new" method="post">
+    <button class="px-3 py-1 rounded border">Add Item</button>
   </form>
 </div>
 

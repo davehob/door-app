@@ -1,15 +1,64 @@
 {% extends "base.html" %}
 {% block content %}
-<h1 class="text-2xl font-semibold mb-4">Settings</h1>
+<h1 class="text-2xl font-semibold mb-4">Settings — Order #{{ order.id }} ({{ order.job_id }})</h1>
+
 <form method="post" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
-  {% for key, label in labels.items() %}
   <div>
-    <label class="block text-sm text-gray-600 mb-1">{{ label }}</label>
-    <input name="{{ key }}" value="{{ values.get(key, '') }}" class="border rounded px-2 py-1 w-full">
+    <label class="block text-sm text-gray-600 mb-1">Dealer Code</label>
+    <input name="dealer_code" value="{{ order.dealer_code or '' }}" class="border rounded px-2 py-1 w-full">
   </div>
-  {% endfor %}
+  <div>
+    <label class="block text-sm text-gray-600 mb-1">Job Name</label>
+    <input name="job_name" value="{{ order.job_name or '' }}" class="border rounded px-2 py-1 w-full">
+  </div>
+  <div>
+    <label class="block text-sm text-gray-600 mb-1">Finish</label>
+    <input name="finish" value="{{ order.finish or '' }}" class="border rounded px-2 py-1 w-full">
+  </div>
+
+  <div class="md:col-span-2 border-t my-2"></div>
+
+  <div>
+    <label class="block text-sm text-gray-600 mb-1">Door SFP code</label>
+    <input name="style_door_sfp" value="{{ order.style_door_sfp or '' }}" class="border rounded px-2 py-1 w-full">
+  </div>
+  <div>
+    <label class="block text-sm text-gray-600 mb-1">Door Flat code</label>
+    <input name="style_door_flat" value="{{ order.style_door_flat or '' }}" class="border rounded px-2 py-1 w-full">
+  </div>
+  <div>
+    <label class="block text-sm text-gray-600 mb-1">Drawer SFP code</label>
+    <input name="style_drawer_sfp" value="{{ order.style_drawer_sfp or '' }}" class="border rounded px-2 py-1 w-full">
+  </div>
+  <div>
+    <label class="block text-sm text-gray-600 mb-1">Drawer Flat code</label>
+    <input name="style_drawer_flat" value="{{ order.style_drawer_flat or '' }}" class="border rounded px-2 py-1 w-full">
+  </div>
+  <div>
+    <label class="block text-sm text-gray-600 mb-1">Panel code (all panels)</label>
+    <input name="style_panel_code" value="{{ order.style_panel_code or '' }}" class="border rounded px-2 py-1 w-full">
+  </div>
+
+  <div class="md:col-span-2 border-t my-2"></div>
+
+  <div>
+    <label class="block text-sm text-gray-600 mb-1">Hinge top offset (in)</label>
+    <input name="hinge_top_offset_in" value="{{ order.hinge_top_offset_in or '' }}"
+      class="border rounded px-2 py-1 w-full">
+  </div>
+  <div>
+    <label class="block text-sm text-gray-600 mb-1">Hinge bottom offset (in)</label>
+    <input name="hinge_bottom_offset_in" value="{{ order.hinge_bottom_offset_in or '' }}"
+      class="border rounded px-2 py-1 w-full">
+  </div>
+  <div>
+    <label class="block text-sm text-gray-600 mb-1">Hinge size (in)</label>
+    <input name="hinge_size_in" value="{{ order.hinge_size_in or '' }}" class="border rounded px-2 py-1 w-full">
+  </div>
+
   <div class="md:col-span-2">
     <button class="bg-blue-600 text-white px-4 py-2 rounded">Save</button>
+    <a class="ml-4 text-blue-600" href="/orders/{{ order.id }}">Back</a>
   </div>
 </form>
 {% endblock %}
